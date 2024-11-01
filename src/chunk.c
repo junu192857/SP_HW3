@@ -18,6 +18,16 @@ struct Chunk {
    int status;         /* Now, the status has two information: status and its role. */
 };
 
+Chunk_T get_footer_from_header(Chunk_T header){
+   Chunk_T footer = header + header->units + 1;
+   return footer;
+}
+
+Chunk_T get_header_from_footer(Chunk_T footer){
+   Chunk_T header = footer - (footer->units + 1);
+   return header;
+}
+
 /*--------------------------------------------------------------------*/
 int
 chunk_get_status(Chunk_T c)
@@ -29,6 +39,8 @@ void
 chunk_set_status(Chunk_T c, int status)
 {
    c->status = status;
+   Chunk_T footer = get_footer_from_header(c);
+   footer->status = status;
 }
 /*--------------------------------------------------------------------*/
 int
@@ -41,6 +53,8 @@ void
 chunk_set_units(Chunk_T c, int units)
 {
    c->units = units;
+   Chunk_T footer = get_footer_from_header(c);
+   footer->units = units;
 }
 /*--------------------------------------------------------------------*/
 Chunk_T
@@ -75,6 +89,8 @@ chunk_get_next_adjacent(Chunk_T c, void* start, void* end)
    return n;
 }
 
+
+
 #ifndef NDEBUG
 /*--------------------------------------------------------------------*/
 int 
@@ -96,7 +112,7 @@ chunk_is_valid(Chunk_T c, void *start, void *end)
 
    footer = c + c->units + 1;
    if (c->units != footer->units)
-      {fprintf(stderr, "Units of header and footer differs\n"); return 0;}
+      {fprintf(stderr, "Units of header and footer differs; header: %d, footer: %d\n", c->units, footer->units); return 0;}
    if (c->status != footer->status)
       {fprintf(stderr, "Status of header and footer differs"); return 0;}
    return 1;
