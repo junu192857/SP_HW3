@@ -61,6 +61,7 @@ check_heap_validity(void)
    }
 
 
+
    for (w = g_free_head; w; w = chunk_get_next_free_chunk(w)) {
       Chunk_T n;
 
@@ -80,6 +81,7 @@ check_heap_validity(void)
    }
    return TRUE;
 }
+
 #endif
 
 /*--------------------------------------------------------------*/
@@ -158,6 +160,7 @@ split_chunk(Chunk_T c, size_t units)
    /* adjust the size of the first chunk */
    all_units = chunk_get_units(c);
    chunk_set_units(c, all_units - units - 2);
+   chunk_set_status(c, chunk_get_status(c));
 
    /* prepare for the second chunk */
    c2 = chunk_get_next_adjacent(c, g_heap_start, g_heap_end);
@@ -310,7 +313,6 @@ heapmgr_malloc(size_t size)
    Chunk_T c, prev, pprev;
    size_t units;
    
-   
    if (size <= 0)
       return NULL;
    
@@ -330,13 +332,12 @@ heapmgr_malloc(size_t size)
         c != NULL; 
         c = chunk_get_next_free_chunk(c)) {
          
-
       if (chunk_get_units(c) >= units) { // case 1: current free block is big/equal than requested
-         if (chunk_get_units(c) > units + 1) // case 1-1: current free block is bigger than requestd
+         
+         if (chunk_get_units(c) > units + 2) // case 1-1: current free block is bigger than requested
             c = split_chunk(c, units); // then split
          else // case 1-2: current free block is perfect fit
             remove_chunk_from_list(prev, c); // then just remove currnet chunk
-         
          assert(check_heap_validity());
          return (void *)((char *)c + CHUNK_UNIT); //return user pointer (c + 16 byte)
       }
@@ -360,7 +361,7 @@ heapmgr_malloc(size_t size)
       c = split_chunk(c, units);
    else 
       remove_chunk_from_list(prev, c);
-      
+   
    assert(check_heap_validity());
    return (void *)((char *)c + CHUNK_UNIT);
 }

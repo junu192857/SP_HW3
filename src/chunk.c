@@ -53,7 +53,7 @@ void
 chunk_set_units(Chunk_T c, int units)
 {
    c->units = units;
-   Chunk_T footer = get_footer_from_header(c);
+   Chunk_T footer = c + units + 1;
    footer->units = units;
 }
 /*--------------------------------------------------------------------*/
@@ -114,7 +114,8 @@ chunk_is_valid(Chunk_T c, void *start, void *end)
    if (c->units != footer->units)
       {fprintf(stderr, "Units of header and footer differs; header: %d, footer: %d\n", c->units, footer->units); return 0;}
    if (c->status != footer->status)
-      {fprintf(stderr, "Status of header and footer differs"); return 0;}
+      {fprintf(stderr, "Status of header and footer differs; header: %d, footer: %d, header add: %p, footer %p\n",
+       c->status, footer->status, (void *)c, (void *) footer); return 0;}
    return 1;
 }
 #endif
