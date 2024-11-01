@@ -28,17 +28,17 @@
 typedef struct Chunk *Chunk_T;
 
 enum {
-   CHUNK_FREE = 1,
-   CHUNK_IN_USE = 2,
-   CHUNK_HEADER = 4,
-   CHUNK_FOOTER = 8,
-   CHUNK_DATA = 16
+   CHUNK_FREE = 0,
+   CHUNK_IN_USE = 1
 };
 
 
 enum {
    CHUNK_UNIT = 16,        /* 16 = sizeof(struct Chunk) */
 };
+
+Chunk_T get_footer_from_header(Chunk_T header);
+Chunk_T get_header_from_footer(Chunk_T footer);
 
 /* chunk_get_status:
  * Returns a chunk's status which shows whether the chunk is in use or free.
@@ -80,6 +80,8 @@ chunk_set_next_free_chunk(Chunk_T c, Chunk_T next);
  * Returns NULL if 'c' is the last chunk in memory space. */
 Chunk_T
 chunk_get_next_adjacent(Chunk_T c, void *start, void *end);
+
+
 
 /* Following two functions are for debugging.
  * These will be removed by C preprocessor if you compile the code with

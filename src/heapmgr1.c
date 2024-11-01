@@ -56,10 +56,11 @@ check_heap_validity(void)
    for (w = (Chunk_T)g_heap_start; 
         w && w < (Chunk_T)g_heap_end;
         w = chunk_get_next_adjacent(w, g_heap_start, g_heap_end)) {
-
       if (!chunk_is_valid(w, g_heap_start, g_heap_end)) 
          return 0;
    }
+
+
 
    for (w = g_free_head; w; w = chunk_get_next_free_chunk(w)) {
       Chunk_T n;
@@ -80,6 +81,7 @@ check_heap_validity(void)
    }
    return TRUE;
 }
+
 #endif
 
 /*--------------------------------------------------------------*/
@@ -128,20 +130,20 @@ init_my_heap(void)
 static Chunk_T
 merge_chunk(Chunk_T c1, Chunk_T c2)
 {
-   /* c1 and c2 must be be adjacent */
+   /* c1 and c2 must be be adjacent header*/
    assert (c1 < c2 && chunk_get_next_adjacent(c1, g_heap_start, g_heap_end) == c2);
    assert (chunk_get_status(c1) == CHUNK_FREE);
    assert (chunk_get_status(c2) == CHUNK_FREE);
 
    /* adjust the units and the next pointer of c1 */
-   chunk_set_units(c1, chunk_get_units(c1) + chunk_get_units(c2) + 1);
+   chunk_set_units(c1, chunk_get_units(c1) + chunk_get_units(c2) + 2);
    chunk_set_next_free_chunk(c1, chunk_get_next_free_chunk(c2));
    return c1;
 }
 /*--------------------------------------------------------------------*/
 /* split_chunk:
  * Split 'c' into two chunks s.t. the size of one chunk is 'units' and
- * the size of the other chunk is (original size - 'units' - 1).
+ * the size of the other chunk is (original size - 'units' - 2).
  * returns the chunk with 'units'
  * Returns the data chunk. */
 /*--------------------------------------------------------------------*/
@@ -153,11 +155,12 @@ split_chunk(Chunk_T c, size_t units)
 
    assert (c >= (Chunk_T)g_heap_start && c <= (Chunk_T)g_heap_end);
    assert (chunk_get_status(c) == CHUNK_FREE);
-   assert (chunk_get_units(c) > units + 1); /* assume chunk with header unit */
+   assert (chunk_get_units(c) > units + 2); /* assume chunk with header and footer unit */
    
    /* adjust the size of the first chunk */
    all_units = chunk_get_units(c);
-   chunk_set_units(c, all_units - units - 1);
+   chunk_set_units(c, all_units - units - 2);
+   chunk_set_status(c, chunk_get_status(c));
 
    /* prepare for the second chunk */
    c2 = chunk_get_next_adjacent(c, g_heap_start, g_heap_end);
@@ -185,14 +188,18 @@ insert_chunk(Chunk_T c)
    if (g_free_head == NULL) {
       g_free_head = c;
       chunk_set_next_free_chunk(c, NULL);
+      
    }
    else {
       assert (c < g_free_head);
       chunk_set_next_free_chunk(c, g_free_head);
       if (chunk_get_next_adjacent(c, g_heap_start, g_heap_end) == g_free_head) 
-         merge_chunk(c, g_free_head);
+         merge_chunk(c, g_free_head); // TODO: merge_chunk is NOT done!!
       g_free_head = c;
    }
+   /* Set previous chunk for footer. in this case, previous free chunk is always NULL. 
+      Because c is the head of list. */ 
+   chunk_set_next_free_chunk(get_footer_from_header(c), NULL); 
 }
 /*--------------------------------------------------------------------*/
 /* insert_chunk_after:
@@ -206,7 +213,8 @@ insert_chunk(Chunk_T c)
 static Chunk_T
 insert_chunk_after(Chunk_T e, Chunk_T c)
 {
-   Chunk_T n;
+   Chunk_T nFree;
+   Chunk_T nAd;
 
    assert (e < c);
    assert (chunk_get_status(e) == CHUNK_FREE);
@@ -215,15 +223,22 @@ insert_chunk_after(Chunk_T e, Chunk_T c)
    chunk_set_next_free_chunk(c, chunk_get_next_free_chunk(e));
    chunk_set_next_free_chunk(e, c);
    chunk_set_status(c, CHUNK_FREE);
+   chunk_set_next_free_chunk(get_footer_from_header(c), e);
+
+   /* set previous pointer of footer of c's next free block as c */
+   nFree = chunk_get_next_free_chunk(c);
+   if (nFree != NULL){
+      chunk_set_next_free_chunk(get_footer_from_header(nFree), c);
+   }
 
    /* see if c can be merged with e */
    if (chunk_get_next_adjacent(e, g_heap_start, g_heap_end) == c) 
       c = merge_chunk(e, c);
    
    /* see if we can merge with n */
-   n = chunk_get_next_adjacent(c, g_heap_start, g_heap_end);
-   if (n != NULL && chunk_get_status(n) == CHUNK_FREE)
-      c = merge_chunk(c, n);
+   nAd = chunk_get_next_adjacent(c, g_heap_start, g_heap_end);
+   if (nAd != NULL && chunk_get_status(nAd) == CHUNK_FREE)
+      c = merge_chunk(c, nAd);
 
    return c;
 }
@@ -263,15 +278,17 @@ allocate_more_memory(Chunk_T prev, size_t units)
    if (units < MEMALLOC_MIN) // if expend memory once, at least 1024 bytes
       units = MEMALLOC_MIN;
    
-   /* Note that we need to allocate one more unit for header. */
-   c = (Chunk_T)sbrk((units + 1) * CHUNK_UNIT);
+   /* Note that we need to allocate two more unit for header and footer. */
+   c = (Chunk_T)sbrk((units + 2) * CHUNK_UNIT);
    if (c == (Chunk_T)-1)
       return NULL;
    
    g_heap_end = sbrk(0);
-   chunk_set_units(c, units);
-   chunk_set_next_free_chunk(c, NULL);
-   chunk_set_status(c, CHUNK_IN_USE);
+   chunk_set_units(c, units); // set units for header AND FOOTER!!
+
+   
+   chunk_set_next_free_chunk(c, NULL); // set next free chunk for header, but in this case c is the last chunk.
+   chunk_set_status(c, CHUNK_IN_USE); // set status for header AND FOOTER!!
    
    /* Insert the newly allocated chunk 'c' to the free list.
     * Note that the list is sorted in ascending order. */
@@ -279,7 +296,7 @@ allocate_more_memory(Chunk_T prev, size_t units)
       insert_chunk(c);
    else 
       c = insert_chunk_after(prev, c);
- 
+   
    assert(check_heap_validity());
    return c;
 }
@@ -308,20 +325,19 @@ heapmgr_malloc(size_t size)
    assert(check_heap_validity());
 
    units = size_to_units(size); // Define how many blocks should be assigned (Not including header and footer)
-
    pprev = NULL;
    prev = NULL;
 
    for (c = g_free_head; // start at the first free chunk of the heap. c should be the pointer to header
         c != NULL; 
         c = chunk_get_next_free_chunk(c)) {
-
+         
       if (chunk_get_units(c) >= units) { // case 1: current free block is big/equal than requested
-         if (chunk_get_units(c) > units + 1) // case 1-1: current free block is bigger than requestd
+         
+         if (chunk_get_units(c) > units + 2) // case 1-1: current free block is bigger than requested
             c = split_chunk(c, units); // then split
          else // case 1-2: current free block is perfect fit
             remove_chunk_from_list(prev, c); // then just remove currnet chunk
-         
          assert(check_heap_validity());
          return (void *)((char *)c + CHUNK_UNIT); //return user pointer (c + 16 byte)
       }
@@ -341,11 +357,11 @@ heapmgr_malloc(size_t size)
    if (c == prev)
       prev = pprev;
 
-   if (chunk_get_units(c) > units + 1) 
+   if (chunk_get_units(c) > units + 2) 
       c = split_chunk(c, units);
    else 
       remove_chunk_from_list(prev, c);
-      
+   
    assert(check_heap_validity());
    return (void *)((char *)c + CHUNK_UNIT);
 }
