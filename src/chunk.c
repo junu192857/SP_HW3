@@ -13,7 +13,7 @@
 
 
 struct Chunk {
-   Chunk_T next;       /* Pointer to the next chunk in the free chunk list */
+   Chunk_T next_or_previous;       /* Pointer to the next or previous chunk in the free chunk list */
    int units;          /* Capacity of a chunk (chunk units) */
    int status;         /* Now, the status has two information: status and its role. */
 };
@@ -46,13 +46,15 @@ chunk_set_units(Chunk_T c, int units)
 Chunk_T
 chunk_get_next_free_chunk(Chunk_T c)
 {
-  return c->next;
+  //if it's header, it returns next. If it is footer, it returns previous.
+  return c->next_or_previous;
 }
 /*--------------------------------------------------------------------*/
 void
-chunk_set_next_free_chunk(Chunk_T c, Chunk_T next)
+chunk_set_next_free_chunk(Chunk_T c, Chunk_T next_or_previous)
 {
-   c->next = next;
+
+   c->next_or_previous = next_or_previous;
 }
 /*--------------------------------------------------------------------*/
 Chunk_T
@@ -64,7 +66,7 @@ chunk_get_next_adjacent(Chunk_T c, void* start, void* end)
 
    /* Note that a chunk consists of one chunk unit for a header, and
     * many chunk units for data. */
-   n = c + c->units + 1; // NEW: There is a footer!
+   n = c + c->units + 2; // NEW: There is a footer!
 
    /* If 'c' is the last chunk in memory space, then return NULL. */
    if ((void *)n >= end)
@@ -83,7 +85,7 @@ chunk_is_valid(Chunk_T c, void *start, void *end)
    assert(start != NULL);
    assert(end != NULL);
 
-   //Chunk_T footer;
+   Chunk_T footer;
 
    if (c < (Chunk_T)start)
       {fprintf(stderr, "Bad heap start\n"); return 0; }
@@ -91,9 +93,12 @@ chunk_is_valid(Chunk_T c, void *start, void *end)
       {fprintf(stderr, "Bad heap end\n"); return 0; }
    if (c->units == 0)
       {fprintf(stderr, "Zero units\n"); return 0; }
-   /*footer = c + c->units + 1;
-   if (footer->status & CHUNK_FOOTER)
-      {fprintf(stderr, "Missing footer"); return 0;}*/
+
+   footer = c + c->units + 1;
+   if (c->units != footer->units)
+      {fprintf(stderr, "Units of header and footer differs\n"); return 0;}
+   if (c->status != footer->status)
+      {fprintf(stderr, "Status of header and footer differs"); return 0;}
    return 1;
 }
 #endif

@@ -28,11 +28,8 @@
 typedef struct Chunk *Chunk_T;
 
 enum {
-   CHUNK_FREE = 1,
-   CHUNK_IN_USE = 2,
-   CHUNK_HEADER = 4,
-   CHUNK_FOOTER = 8,
-   CHUNK_DATA = 16
+   CHUNK_FREE = 0,
+   CHUNK_IN_USE = 1
 };
 
 

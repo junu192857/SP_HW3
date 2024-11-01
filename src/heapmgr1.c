@@ -263,13 +263,13 @@ allocate_more_memory(Chunk_T prev, size_t units)
    if (units < MEMALLOC_MIN) // if expend memory once, at least 1024 bytes
       units = MEMALLOC_MIN;
    
-   /* Note that we need to allocate one more unit for header. */
-   c = (Chunk_T)sbrk((units + 1) * CHUNK_UNIT);
+   /* Note that we need to allocate two more unit for header and footer. */
+   c = (Chunk_T)sbrk((units + 2) * CHUNK_UNIT);
    if (c == (Chunk_T)-1)
       return NULL;
    
    g_heap_end = sbrk(0);
-   chunk_set_units(c, units);
+   chunk_set_units(c, units); // set units for header AND FOOTER!!
    chunk_set_next_free_chunk(c, NULL);
    chunk_set_status(c, CHUNK_IN_USE);
    
@@ -279,7 +279,7 @@ allocate_more_memory(Chunk_T prev, size_t units)
       insert_chunk(c);
    else 
       c = insert_chunk_after(prev, c);
- 
+   
    assert(check_heap_validity());
    return c;
 }
@@ -315,6 +315,7 @@ heapmgr_malloc(size_t size)
    for (c = g_free_head; // start at the first free chunk of the heap. c should be the pointer to header
         c != NULL; 
         c = chunk_get_next_free_chunk(c)) {
+         
 
       if (chunk_get_units(c) >= units) { // case 1: current free block is big/equal than requested
          if (chunk_get_units(c) > units + 1) // case 1-1: current free block is bigger than requestd
